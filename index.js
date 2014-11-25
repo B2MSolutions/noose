@@ -86,7 +86,7 @@ function processAll() {
     metrics().gauge(bucket('all', 'readthrottleevents'), allReadSums);
     metrics().gauge(bucket('all', 'writethrottleevents'), allWriteSums);
     console.log(bucket('all', 'throttleevents'), allReadSums + allWriteSums);
-    setTimeout(processAll, 10000);
+    setTimeout(processAll, 60000);
   });
 }
 
