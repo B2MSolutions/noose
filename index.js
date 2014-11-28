@@ -91,6 +91,10 @@ function processAll() {
 }
 
 return dynamodb.listTables(function(e, data) {
-  tables = data.TableNames;
+  var prefix = process.env.NOOSE_PREFIX;
+  tables = _.filter(data.TableNames, function(name) {
+    return name.substr(0, prefix.length) === prefix;
+  });
+  
   processAll();
 });
