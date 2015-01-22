@@ -24,14 +24,14 @@ function bucket(table, metric) {
 }
 
 function processTable(table, done) {
-  var metricNames = ['ReadThrottleEvents', 'WriteThrottleEvents'];
+  var metricNames = ['ThrottledRequests'];
 
   function processMetric(metric, cb) {
     var params = {
       EndTime: new Date().toISOString(),
       MetricName: metric,
       Namespace: 'AWS/DynamoDB',
-      Period: 60,
+      Period: 300,
       StartTime: new Date(new Date().getTime() - 60 * 60 * 1000).toISOString(),
       Statistics: ['Sum'],
       Dimensions: [{
@@ -74,23 +74,15 @@ function processAll() {
       console.error(e);         
     }
 
-    var allReadSums = _.reduce(results, function(sum, num) {
-      return sum + num[0];
-    }, 0);
+    var total = _.reduce(results, function(sum, num) {return sum + +num;}, 0); 
     
-    var allWriteSums = _.reduce(results, function(sum, num) {
-      return sum + num[1];
-    }, 0);
-
-    metrics().gauge(bucket('all', 'throttleevents'), allReadSums + allWriteSums);
-    metrics().gauge(bucket('all', 'readthrottleevents'), allReadSums);
-    metrics().gauge(bucket('all', 'writethrottleevents'), allWriteSums);
-    console.log(bucket('all', 'throttleevents'), allReadSums + allWriteSums);
+    metrics().gauge(bucket('all', 'throttleevents'), total);
+    console.log(bucket('all', 'throttleevents'), total);
     setTimeout(processAll, 60000);
   });
 }
 
-return dynamodb.listTables(function(e, data) {
+dynamodb.listTables(function(e, data) {
   var prefix = process.env.NOOSE_PREFIX;
   tables = _.filter(data.TableNames, function(name) {
     return name.substr(0, prefix.length) === prefix;
