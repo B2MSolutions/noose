@@ -6,7 +6,10 @@ var _ = require('lodash'),
   lynx = require('lynx'),
   lynxInstance = undefined;
 
+var TABLES_UPDATE_PERIOD = 1000 * 60 * 60; //Every hour;
+
 var tables = [];
+var lastTablesUpdateTime;
 
 function metrics() {
   if (!lynxInstance) {
@@ -55,9 +58,9 @@ function processTable(table, done) {
       }
       var b = bucket(table, metric);
       if (true || sum > 0) {
-        console.log(b, sum);      
+        console.log(b, sum);
       }
-      
+
       metrics().gauge(b, sum);
       return cb(null, sum);
     });
@@ -67,26 +70,38 @@ function processTable(table, done) {
 };
 
 function processAll() {
-  console.log('processing...');
+  if (((new Date().getTime()) - lastTablesUpdateTime) >= TABLES_UPDATE_PERIOD) {
+    return updateTables();
+  }
+
+  console.log('Processing...');
 
   return async.map(tables, processTable, function(e, results) {
     if (e) {
-      console.error(e);         
+      console.error(e);
     }
 
-    var total = _.reduce(results, function(sum, num) {return sum + +num;}, 0); 
-    
+    var total = _.reduce(results, function(sum, num) {return sum + +num;}, 0);
+
     metrics().gauge(bucket('all', 'throttleevents'), total);
     console.log(bucket('all', 'throttleevents'), total);
     setTimeout(processAll, 60000);
   });
 }
 
-dynamodb.listTables(function(e, data) {
-  var prefix = process.env.NOOSE_PREFIX;
-  tables = _.filter(data.TableNames, function(name) {
-    return name.substr(0, prefix.length) === prefix;
+function updateTables () {
+  console.log('Updating table list');
+  dynamodb.listTables(function(e, data) {
+    lastTablesUpdateTime = new Date().getTime();
+    var prefix = process.env.NOOSE_PREFIX;
+    tables = _.filter(data.TableNames, function(name) {
+      return name.substr(0, prefix.length) === prefix;
+    });
+
+    console.log('Tables: ', tables);
+
+    processAll();
   });
-  
-  processAll();
-});
+}
+
+updateTables();
