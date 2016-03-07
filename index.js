@@ -10,6 +10,7 @@ var TABLES_UPDATE_PERIOD = 1000 * 60 * 60; //Every hour;
 
 var tables = [];
 var lastTablesUpdateTime;
+var metricNames = ['WriteThrottleEvents','ReadThrottleEvents'];
 
 function metrics() {
   if (!lynxInstance) {
@@ -26,8 +27,7 @@ function bucket(table, metric) {
   return ['dynamodb', metric.toLowerCase(), table].join('.');
 }
 
-function processTable(table, done) {
-  var metricNames = ['ThrottledRequests'];
+function processTable(table, done) {  
 
   function processMetric(metric, cb) {
     var params = {
@@ -80,11 +80,14 @@ function processAll() {
     if (e) {
       console.error(e);
     }
+    var total = _.reduce(results, function(sum, num) {return _.zipWith(sum, num, function (v1, v2) { return v1 + v2 })}, [0, 0]);
 
-    var total = _.reduce(results, function(sum, num) {return sum + +num;}, 0);
+    _.zipWith(metricNames, total, function (name, value) { console.log(bucket('all', name), value) });
+    _.zipWith(metricNames, total, function (name, value) { metrics().gauge(bucket('all', name), value) });
 
-    metrics().gauge(bucket('all', 'throttleevents'), total);
-    console.log(bucket('all', 'throttleevents'), total);
+    var allMetricTotal = _.reduce(total, function(sum, num) {return sum + +num;}, 0);
+    console.log(bucket('all', 'throttleevents'), allMetricTotal);
+    metrics().gauge(bucket('all', 'throttleevents'), allMetricTotal);
     setTimeout(processAll, 60000);
   });
 }
@@ -93,11 +96,10 @@ function updateTables () {
   console.log('Updating table list');
   dynamodb.listTables(function(e, data) {
     lastTablesUpdateTime = new Date().getTime();
-    var prefix = process.env.NOOSE_PREFIX;
+    var prefix = process.env.NOOSE_PREFIX || '';
     tables = _.filter(data.TableNames, function(name) {
       return name.substr(0, prefix.length) === prefix;
     });
-
     console.log('Tables: ', tables);
 
     processAll();
